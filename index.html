@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Round Robin CPU Scheduling Visualizer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>Round Robin CPU Scheduling</h1>
+
+    <div class="container" id="input-section">
+        <h2>Parameters</h2>
+        <div>
+            <label for="time-quantum">Time Quantum:</label>
+            <input type="number" id="time-quantum" value="4" min="1">
+        </div>
+        <div id="process-list">
+            <h3>Process List</h3>
+            <table id="process-table">
+                <thead>
+                    <tr>
+                        <th>Process ID</th>
+                        <th>Arrival Time</th>
+                        <th>Burst Time</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="process-table-body">
+                    <tr>
+                        <td>P1</td>
+                        <td><input type="number" value="0" min="0"></td>
+                        <td><input type="number" value="5" min="1"></td>
+                        <td><button class="remove-btn">Remove</button></td>
+                    </tr>
+                    <tr>
+                        <td>P2</td>
+                        <td><input type="number" value="1" min="0"></td>
+                        <td><input type="number" value="3" min="1"></td>
+                        <td><button class="remove-btn">Remove</button></td>
+                    </tr>
+                    <tr>
+                        <td>P3</td>
+                        <td><input type="number" value="2" min="0"></td>
+                        <td><input type="number" value="8" min="1"></td>
+                        <td><button class="remove-btn">Remove</button></td>
+                    </tr>
+                </tbody>
+            </table>
+            <button id="add-process-btn">Add Process</button>
+        </div>
+    </div>
+
+    <div class="container" id="controls-section">
+        <h2>Controls</h2>
+        <button id="run-btn">Run</button>
+        <button id="pause-btn" disabled>Pause</button>
+        <button id="reset-btn" disabled>Reset</button>
+        <button id="step-forward-btn" disabled>Step Forward</button>
+        <button id="step-backward-btn" disabled>Step Backward</button>
+        <div>
+            <label for="speed-slider">Speed:</label>
+            <input type="range" id="speed-slider" min="100" max="2000" value="1000" step="100">
+        </div>
+    </div>
+
+    <div class="container" id="visualization-section">
+        <h2>Visualization</h2>
+        <canvas id="main-canvas" width="1000" height="500"></canvas>
+    </div>
+
+    <div class="container" id="statistics-section">
+        <h2>Real-Time Statistics</h2>
+        <p>Current Time: <span id="current-time">0</span></p>
+        <div id="ready-queue-vis">
+            <strong>Ready Queue:</strong> <span id="ready-queue-span">[Empty]</span>
+        </div>
+        <div id="terminated-queue-vis">
+            <strong>Terminated:</strong> <span id="terminated-span">[Empty]</span>
+        </div>
+        <h3>Final Results</h3>
+        <table id="results-table">
+            <thead>
+                <tr>
+                    <th>Process ID</th>
+                    <th>Arrival</th>
+                    <th>Burst</th>
+                    <th>Completion</th>
+                    <th>Turnaround</th>
+                    <th>Waiting</th>
+                </tr>
+            </thead>
+            <tbody id="results-table-body">
+            </tbody>
+        </table>
+        <p>Average Turnaround Time: <span id="avg-tat">0.00</span></p>
+        <p>Average Waiting Time: <span id="avg-wt">0.00</span></p>
+    </div>
+
+    <script type="module" src="scripts/main.js"></script>
+
+</body>
+</html>
