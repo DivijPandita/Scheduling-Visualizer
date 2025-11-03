@@ -2,35 +2,27 @@
 
 /**
  * Main router function.
- * Calls the correct algorithm based on the selected type.
- * @param {string} type - "RR", "FCFS", "SJF", "PRIORITY"
- * @param {Array} initialProcesses - Array of process objects from ui.js
- * @param {number} quantum - The time quantum
- * @returns {Array} - An array of "steps" for the animation
  */
 export function calculateSchedule(type, initialProcesses, quantum) {
-    // Create a "deep copy" of processes to avoid modifying the original data
     let processes = JSON.parse(JSON.stringify(initialProcesses));
-    
-    // Sort by arrival time first, as this is a base for most algorithms
     processes.sort((a, b) => a.arrival - b.arrival);
 
     switch (type) {
         case 'RR':
-            console.log("Calculating Round Robin...");
-            return calculateRoundRobin(processes, quantum);
+            console.log("Calculating Round Robin with I/O...");
+            return calculateRoundRobin_IO(processes, quantum);
         case 'FCFS':
             console.log("Calculating FCFS...");
+            // Note: FCFS/SJF will only run the *first* CPU burst
+            // and will not work correctly with I/O sequences.
             return calculateFCFS(processes);
         case 'SJF':
             console.log("Calculating SJF (Non-Preemptive)...");
             return calculateSJF(processes);
         case 'PRIORITY':
             console.log("Calculating Priority (Non-Preemptive)...");
-            // You can build this one using SJF as a template!
-            // return calculatePriority(processes);
             alert("Priority algorithm not yet implemented.");
-            return []; // Return empty array
+            return [];
         default:
             console.error("Unknown algorithm type:", type);
             return [];
@@ -38,38 +30,53 @@ export function calculateSchedule(type, initialProcesses, quantum) {
 }
 
 // ---
-// ALGORITHM 1: Round Robin (Your existing, working code)
+// ALGORITHM 1: Round Robin (NEW VERSION with I/O)
 // ---
-function calculateRoundRobin(processes, quantum) {
-    console.log("Algorithm started with:", processes, quantum);
-    // ... (Your entire, working RR logic from the previous step)
-    // ... (No changes needed here, just make sure it's a local function)
-    
-    // ---
-    // (Pasting your RR logic here for completeness)
-    // ---
+function calculateRoundRobin_IO(processes, quantum) {
     let currentTime = 0;
     let readyQueue = [];
+    let blockedQueue = []; // New queue for I/O
     let terminatedProcesses = [];
     let animationSteps = [];
     let totalProcesses = processes.length;
     let currentProcessOnCPU = null;
     let quantumTimer = 0;
-    
+
     let processPool = [...processes];
     const processMap = new Map();
     processes.forEach(p => processMap.set(p.id, p));
 
     while (terminatedProcesses.length < totalProcesses) {
+        
+        // 1. Check for new arrivals
         let newArrivals = [];
-        processPool.forEach(p => {
+        processPool = processPool.filter(p => {
             if (p.arrival === currentTime) {
                 readyQueue.push(p);
                 newArrivals.push(p.id);
+                return false; // Remove from pool
+            }
+            return true;
+        });
+
+        // 2. Tick down I/O for processes in the blocked queue
+        let unblockedProcesses = [];
+        blockedQueue.forEach(p => {
+            p.ioTimer--;
+            if (p.ioTimer === 0) {
+                // Process is done with I/O
+                unblockedProcesses.push(p);
+                // Move to next burst (which must be CPU)
+                p.burstIndex++;
+                p.remainingBurst = p.burstSequence[p.burstIndex];
             }
         });
-        processPool = processPool.filter(p => p.arrival !== currentTime);
         
+        // Move unblocked processes to the ready queue
+        blockedQueue = blockedQueue.filter(p => p.ioTimer > 0);
+        readyQueue.push(...unblockedProcesses);
+
+        // 3. Check CPU state (Process Dispatch)
         if (currentProcessOnCPU === null) {
             if (readyQueue.length > 0) {
                 currentProcessOnCPU = readyQueue.shift();
@@ -77,52 +84,70 @@ function calculateRoundRobin(processes, quantum) {
             }
         }
 
+        // 4. Save the state for this time unit
         const stepData = {
             time: currentTime,
             cpuProcess: currentProcessOnCPU ? currentProcessOnCPU.id : 'Idle',
             quantumTimer: quantumTimer,
             readyQueue: readyQueue.map(p => p.id),
+            blockedQueue: blockedQueue.map(p => `${p.id} (${p.ioTimer})`), // Show I/O time
             terminated: terminatedProcesses.map(p => p.id),
             arrivals: newArrivals,
-            processStats: [...processMap.values()].map(p => ({ id: p.id, remainingBurst: p.remainingBurst })),
+            processStats: [...processMap.values()].map(p => ({ 
+                 id: p.id, 
+                 state: p.isFinished ? 'Term' : (currentProcessOnCPU?.id === p.id ? 'Run' : (readyQueue.includes(p) ? 'Ready' : (blockedQueue.includes(p) ? 'Block' : '...'))),
+                 remainingBurst: p.remainingBurst 
+            })),
             isFinalStep: false,
         };
         animationSteps.push(stepData);
 
+        // 5. Execute the process on the CPU
         if (currentProcessOnCPU) {
             currentProcessOnCPU.remainingBurst--;
             quantumTimer--;
 
+            // Check for CPU Burst Completion
             if (currentProcessOnCPU.remainingBurst === 0) {
-                currentProcessOnCPU.isFinished = true;
-                currentProcessOnCPU.completionTime = currentTime + 1;
-                terminatedProcesses.push(currentProcessOnCPU);
-                currentProcessOnCPU = null;
-                quantumTimer = 0;
-            } else if (quantumTimer === 0) {
+                // CPU burst is done. Check if there's more.
+                currentProcessOnCPU.burstIndex++;
+                
+                if (currentProcessOnCPU.burstIndex >= currentProcessOnCPU.burstSequence.length) {
+                    // --- PROCESS TERMINATED ---
+                    currentProcessOnCPU.isFinished = true;
+                    currentProcessOnCPU.completionTime = currentTime + 1;
+                    terminatedProcesses.push(currentProcessOnCPU);
+                    currentProcessOnCPU = null;
+                } else {
+                    // --- PROCESS BLOCKED FOR I/O ---
+                    // Get I/O time from the *next* burst sequence
+                    currentProcessOnCPU.ioTimer = currentProcessOnCPU.burstSequence[currentProcessOnCPU.burstIndex];
+                    blockedQueue.push(currentProcessOnCPU);
+                    currentProcessOnCPU = null;
+                }
+            } 
+            // Check for Quantum Expiration
+            else if (quantumTimer === 0) {
+                // Preempt!
                 readyQueue.push(currentProcessOnCPU);
                 currentProcessOnCPU = null;
             }
         }
         
         currentTime++;
-        if (currentTime > 1000) { break; }
+        if (currentTime > 1000) { break; } // Safety break
     }
 
-    // (Final stats calculation and final step push)
-    let totalTAT = 0;
-    let totalWT = 0;
+    // Calculate final stats
     processes.forEach(p => {
         p.turnaroundTime = p.completionTime - p.arrival;
-        p.waitingTime = p.turnaroundTime - p.burst;
-        totalTAT += p.turnaroundTime;
-        totalWT += p.waitingTime;
+        p.waitingTime = p.turnaroundTime - p.totalBurst; // Wait time is TAT - *Total CPU Burst*
     });
     
     animationSteps.push({
         time: currentTime,
-        cpuProcess: 'Idle',
-        quantumTimer: 0, readyQueue: [],
+        cpuProcess: 'Idle', quantumTimer: 0,
+        readyQueue: [], blockedQueue: [],
         terminated: terminatedProcesses.map(p => p.id),
         arrivals: [],
         processStats: [...processMap.values()].map(p => ({ id: p.id, remainingBurst: p.remainingBurst })),
@@ -136,157 +161,122 @@ function calculateRoundRobin(processes, quantum) {
 
 
 // ---
-// ALGORITHM 2: First-Come, First-Serve (FCFS)
+// ALGORITHM 2 & 3: FCFS and SJF (Unchanged)
+// These will only run the *first* CPU burst and then terminate.
+// They do not support the new I/O model.
 // ---
+
 function calculateFCFS(processes) {
-    // FCFS is simple. Processes are already sorted by arrival time.
+    // ... (Your existing FCFS logic)
+    // NOTE: This logic will now use `p.remainingBurst`, which is only
+    // the *first* CPU burst. It will not process I/O.
     let currentTime = 0;
-    let readyQueue = [...processes]; // Use the full list as the queue
+    let readyQueue = [...processes];
     let terminatedProcesses = [];
     let animationSteps = [];
     let currentProcessOnCPU = null;
 
     while (terminatedProcesses.length < processes.length) {
-        // If CPU is idle and there are processes in the queue
         if (currentProcessOnCPU === null && readyQueue.length > 0) {
-            // Check if the first process in queue has arrived
             if (readyQueue[0].arrival <= currentTime) {
                 currentProcessOnCPU = readyQueue.shift();
-                // Set remainingBurst to the full burst time
-                currentProcessOnCPU.remainingBurst = currentProcessOnCPU.burst;
             }
         }
-
-        // Save the state for this time unit
         const stepData = {
             time: currentTime,
             cpuProcess: currentProcessOnCPU ? currentProcessOnCPU.id : 'Idle',
             readyQueue: readyQueue.map(p => p.id),
+            blockedQueue: [], // No I/O
             terminated: terminatedProcesses.map(p => p.id),
-            // (You can simplify stats for FCFS if you want)
             processStats: processes.map(p => ({ id: p.id, remainingBurst: p.remainingBurst })),
             isFinalStep: false,
         };
         animationSteps.push(stepData);
-        
-        // Execute the process
         if (currentProcessOnCPU) {
             currentProcessOnCPU.remainingBurst--;
-
-            // Check for completion
             if (currentProcessOnCPU.remainingBurst === 0) {
                 currentProcessOnCPU.isFinished = true;
                 currentProcessOnCPU.completionTime = currentTime + 1;
                 terminatedProcesses.push(currentProcessOnCPU);
-                currentProcessOnCPU = null; // Free the CPU
+                currentProcessOnCPU = null;
             }
         }
-
-        // If CPU is idle and no processes are ready yet, we still tick
         currentTime++;
-
-        if (currentTime > 1000) { break; } // Safety break
+        if (currentTime > 1000) { break; }
     }
-
-    // (Final stats calculation and final step push)
     processes.forEach(p => {
         p.turnaroundTime = p.completionTime - p.arrival;
-        p.waitingTime = p.turnaroundTime - p.burst;
+        p.waitingTime = p.turnaroundTime - p.totalBurst;
     });
-    
     animationSteps.push({
-        time: currentTime,
-        cpuProcess: 'Idle',
-        readyQueue: [],
+        time: currentTime, cpuProcess: 'Idle', readyQueue: [], blockedQueue: [],
         terminated: terminatedProcesses.map(p => p.id),
-        isFinalStep: true,
-        finalProcessStats: processes
+        isFinalStep: true, finalProcessStats: processes
     });
-    
     return animationSteps;
 }
 
-
-// ---
-// ALGORITHM 3: Shortest Job First (SJF) (Non-Preemptive)
-// ---
 function calculateSJF(processes) {
+    // ... (Your existing SJF logic)
+    // NOTE: This logic will sort by `p.burst`, which is now `totalBurst`.
+    // It will only execute the *first* CPU burst.
     let currentTime = 0;
-    let processPool = [...processes]; // Processes not yet arrived
-    let readyQueue = []; // Processes that have arrived but not run
+    let processPool = [...processes];
+    let readyQueue = [];
     let terminatedProcesses = [];
     let animationSteps = [];
     let currentProcessOnCPU = null;
-
     const totalProcesses = processes.length;
 
     while (terminatedProcesses.length < totalProcesses) {
-        // 1. Add arriving processes to the ready queue
         processPool = processPool.filter(p => {
             if (p.arrival === currentTime) {
                 readyQueue.push(p);
-                return false; // Remove from pool
+                return false;
             }
-            return true; // Keep in pool
+            return true;
         });
 
-        // 2. Check if CPU is idle
         if (currentProcessOnCPU === null) {
-            // If CPU is idle, pick a new process
             if (readyQueue.length > 0) {
-                // Sort the ready queue by *shortest burst time*
-                readyQueue.sort((a, b) => a.burst - b.burst);
-                
-                // Get the shortest job
+                // Sort by TOTAL burst time (as per original logic)
+                readyQueue.sort((a, b) => a.totalBurst - b.totalBurst);
                 currentProcessOnCPU = readyQueue.shift();
-                currentProcessOnCPU.remainingBurst = currentProcessOnCPU.burst;
             }
         }
 
-        // 3. Save the state for this time unit
         const stepData = {
             time: currentTime,
             cpuProcess: currentProcessOnCPU ? currentProcessOnCPU.id : 'Idle',
-            // Note: Our readyQueue is sorted by burst, not arrival!
-            readyQueue: readyQueue.map(p => p.id), 
+            readyQueue: readyQueue.map(p => p.id),
+            blockedQueue: [], // No I/O
             terminated: terminatedProcesses.map(p => p.id),
             processStats: processes.map(p => ({ id: p.id, remainingBurst: p.remainingBurst })),
             isFinalStep: false,
         };
         animationSteps.push(stepData);
 
-        // 4. Execute the process
         if (currentProcessOnCPU) {
             currentProcessOnCPU.remainingBurst--;
-
-            // Check for completion
             if (currentProcessOnCPU.remainingBurst === 0) {
                 currentProcessOnCPU.isFinished = true;
                 currentProcessOnCPU.completionTime = currentTime + 1;
                 terminatedProcesses.push(currentProcessOnCPU);
-                currentProcessOnCPU = null; // Free the CPU
+                currentProcessOnCPU = null;
             }
         }
-
-        // 5. Increment time
         currentTime++;
-        if (currentTime > 1000) { break; } // Safety break
+        if (currentTime > 1000) { break; }
     }
 
-    // (Final stats calculation and final step push)
     processes.forEach(p => {
         p.turnaroundTime = p.completionTime - p.arrival;
-        p.waitingTime = p.turnaroundTime - p.burst;
+        p.waitingTime = p.turnaroundTime - p.totalBurst;
     });
-    
     animationSteps.push({
-        time: currentTime,
-        cpuProcess: 'Idle',
-        readyQueue: [],
+        time: currentTime, cpuProcess: 'Idle', readyQueue: [], blockedQueue: [],
         terminated: terminatedProcesses.map(p => p.id),
-        isFinalStep: true,
-        finalProcessStats: processes
+        isFinalStep: true, finalProcessStats: processes
     });
-    
     return animationSteps;
 }
