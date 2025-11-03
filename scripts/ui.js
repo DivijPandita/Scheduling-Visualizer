@@ -63,7 +63,8 @@ function updateUIForAlgorithm() {
  * @param {Event} e - The click event
  */
 function handleTableClick(e) {
-    if (e.target.classList.contents.contains('remove-btn')) {
+    // Corrected line: Removed the extra ".contents"
+    if (e.target.classList.contains('remove-btn')) {
         // Find the closest 'tr' (table row) and remove it
         e.target.closest('tr').remove();
     }
