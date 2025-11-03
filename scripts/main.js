@@ -20,17 +20,15 @@ let animationSpeed = 1000; // Milliseconds (default)
 function handleRun() {
     console.log("Run clicked");
     
-    // 1. Get inputs from UI
     const processes = getProcesses();
     const quantum = getTimeQuantum();
-    const algorithmType = getAlgorithm(); // Get the selected algorithm
+    const algorithmType = getAlgorithm();
 
     if (processes.length === 0) {
         alert("Please add at least one process.");
         return;
     }
 
-    // 2. Call the main schedule router
     try {
         animationSteps = calculateSchedule(algorithmType, processes, quantum);
     } catch (error) {
@@ -40,18 +38,15 @@ function handleRun() {
     }
     
     if (animationSteps.length === 0) {
-        // This can happen if the algorithm isn't implemented (like Priority)
-        console.log("Algorithm returned no steps. It might not be implemented.");
+        console.log("Algorithm returned no steps.");
         return;
     }
 
-    // 3. Start the animation
     console.log(`Starting animation with ${animationSteps.length} steps.`);
     currentStep = 0;
     isPlaying = true;
-    updateControls(true); // Disable inputs, enable pause/reset
+    updateControls(true);
     
-    // Disable the algorithm select while running
     document.getElementById('algorithm-select').disabled = true;
 
     startAnimation();
@@ -66,7 +61,6 @@ function handlePause() {
     if (animationInterval) {
         clearInterval(animationInterval);
     }
-    // Enable step buttons only when paused and simulation has run
     if (animationSteps.length > 0) {
         document.getElementById('step-forward-btn').disabled = false;
         document.getElementById('step-backward-btn').disabled = false;
@@ -79,15 +73,14 @@ function handlePause() {
  */
 function handleReset() {
     console.log("Reset clicked");
-    handlePause(); // Stop any running intervals
+    handlePause();
     animationSteps = [];
     currentStep = 0;
-    resetUI(); // Resets all UI elements
+    resetUI();
     
-    // Re-enable the algorithm select
     document.getElementById('algorithm-select').disabled = false;
     
-    drawFrame(null); // Clear the canvas
+    drawFrame(null);
 }
 
 /**
@@ -118,13 +111,10 @@ function startAnimation() {
         clearInterval(animationInterval);
     }
     
-    // Disable step buttons while playing
     document.getElementById('step-forward-btn').disabled = true;
     document.getElementById('step-backward-btn').disabled = true;
     document.getElementById('pause-btn').disabled = false;
     
-    // Read speed from slider (inverted: higher value = slower)
-    // The slider range is 100 (fast) to 2000 (slow)
     animationSpeed = 2100 - document.getElementById('speed-slider').value;
 
     animationInterval = setInterval(() => {
@@ -132,11 +122,9 @@ function startAnimation() {
             updateSimulationState(currentStep);
             currentStep++;
         } else {
-            handlePause(); // Stop when animation ends
-            // Lock onto the last step
+            handlePause();
             if (currentStep >= animationSteps.length) {
                 currentStep = animationSteps.length - 1;
-                // Ensure the final state is fully displayed
                 if(currentStep >= 0) {
                      updateSimulationState(currentStep);
                 }
@@ -158,9 +146,14 @@ function updateSimulationState(stepIndex) {
 
     // 2. Update statistics
     document.getElementById('current-time').textContent = stepData.time;
+    
     const readyQueueText = stepData.readyQueue.length > 0 ? stepData.readyQueue.join(', ') : '[Empty]';
     document.getElementById('ready-queue-span').textContent = readyQueueText;
     
+    // NEW - Update Blocked Queue
+    const blockedQueueText = stepData.blockedQueue.length > 0 ? stepData.blockedQueue.join(', ') : '[Empty]';
+    document.getElementById('blocked-span').textContent = blockedQueueText;
+
     const terminatedText = stepData.terminated.length > 0 ? stepData.terminated.join(', ') : '[Empty]';
     document.getElementById('terminated-span').textContent = terminatedText;
 
@@ -176,20 +169,18 @@ function updateSimulationState(stepIndex) {
  */
 function displayFinalResults(finalStats) {
     const resultsBody = document.getElementById('results-table-body');
-    resultsBody.innerHTML = ''; // Clear old results
+    resultsBody.innerHTML = '';
 
     let totalTAT = 0;
     let totalWT = 0;
 
-    // Ensure finalStats is an array before processing
     if (Array.isArray(finalStats)) {
         finalStats.forEach(p => {
             const row = resultsBody.insertRow();
             row.innerHTML = `
                 <td>${p.id}</td>
                 <td>${p.arrival}</td>
-                <td>${p.burst}</td>
-                <td>${p.completionTime}</td>
+                <td>${p.totalBurst}</td> <td>${p.completionTime}</td>
                 <td>${p.turnaroundTime}</td>
                 <td>${p.waitingTime}</td>
             `;
@@ -211,12 +202,7 @@ function displayFinalResults(finalStats) {
 
 
 // --- Initialization ---
-
-/**
- * Main entry point for the application
- */
 function main() {
-    // Pass the handler functions to the UI module
     initUI({
         onRun: handleRun,
         onPause: handlePause,
@@ -225,9 +211,7 @@ function main() {
         onStepBackward: handleStepBackward
     });
     
-    // Draw the initial empty state
     drawFrame(null);
 }
 
-// Start the application once the DOM is loaded
 document.addEventListener('DOMContentLoaded', main);
