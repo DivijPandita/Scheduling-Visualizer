@@ -5,7 +5,6 @@ const canvas = document.getElementById('main-canvas');
 const ctx = canvas.getContext('2d');
 
 // --- Module-Level State for Gantt Chart ---
-// This array will store the history of CPU usage.
 let ganttHistory = [];
 
 // Define colors and layout
@@ -28,7 +27,7 @@ const COLORS = {
 };
 
 // --- NEW LAYOUT OBJECT ---
-// Re-designed for zero overlap.
+// This layout has wider gaps between columns to prevent any overlap.
 const LAYOUT = {
     padding: 30,
     boxSize: 55,
@@ -37,17 +36,17 @@ const LAYOUT = {
     // Row 1: Time & Process Status
     row1Y: 50,
     timeX: 30,
-    tableX: 550,
+    tableX: 600, // Pushed far right
 
     // Row 2: CPU & Ready Queue
     row2Y: 150,
     cpuX: 50,
-    readyX: 200,
+    readyX: 250, // Pushed right
 
     // Row 3: Terminated & Blocked Queue
     row3Y: 280,
     termX: 50,
-    blockedX: 200,
+    blockedX: 250, // Pushed right (aligned with Ready Queue)
 
     // Row 4: Gantt Chart
     row4Y: 400,
@@ -87,8 +86,6 @@ export function drawFrame(stepData) {
     }
     
     // --- GANTT CHART LOGIC ---
-    // Store the CPU state for this time tick
-    // We only add if it's a new time tick
     if (ganttHistory[stepData.time] === undefined) {
          ganttHistory[stepData.time] = stepData.cpuProcess;
     }
@@ -100,7 +97,7 @@ export function drawFrame(stepData) {
     drawBlockedQueue(stepData.blockedQueue);
     drawTerminated(stepData.terminated);
     drawProcessStatus(stepData.processStats);
-    drawGanttChart(stepData.time); // NEW
+    drawGanttChart(stepData.time);
 }
 
 // --- Drawing Helper Functions (Using New LAYOUT) ---
@@ -113,21 +110,25 @@ function drawCurrentTime(time) {
 }
 
 function drawCpu(processId, quantum) {
+    // Draw Label
     ctx.fillStyle = COLORS.label;
     ctx.font = '18px Arial';
     ctx.textAlign = 'left';
     ctx.fillText('CPU', LAYOUT.cpuX, LAYOUT.row2Y - 10);
 
+    // Draw Box
     let color = (processId !== 'Idle') ? COLORS.cpu : COLORS.idle;
     ctx.fillStyle = color;
     ctx.fillRect(LAYOUT.cpuX, LAYOUT.row2Y, LAYOUT.boxSize, LAYOUT.boxSize);
     ctx.strokeRect(LAYOUT.cpuX, LAYOUT.row2Y, LAYOUT.boxSize, LAYOUT.boxSize);
 
+    // Draw Process ID
     ctx.fillStyle = (processId === 'Idle') ? COLORS.textDark : COLORS.text;
     ctx.font = '22px Arial';
     ctx.textAlign = 'center';
     ctx.fillText(processId, LAYOUT.cpuX + LAYOUT.boxSize / 2, LAYOUT.row2Y + LAYOUT.boxSize / 2 + 8);
     
+    // Draw Quantum Timer
     if (quantum !== undefined && quantum > 0) {
         ctx.fillStyle = COLORS.textDark;
         ctx.font = '16px Arial';
@@ -137,6 +138,7 @@ function drawCpu(processId, quantum) {
 }
 
 function drawReadyQueue(queue) {
+    // Draw Label
     ctx.fillStyle = COLORS.label;
     ctx.font = '18px Arial';
     ctx.textAlign = 'left';
@@ -149,6 +151,7 @@ function drawReadyQueue(queue) {
         return;
     }
 
+    // Draw queue boxes horizontally
     queue.forEach((pid, index) => {
         let x = LAYOUT.readyX + index * (LAYOUT.boxSize + LAYOUT.boxGap);
         let y = LAYOUT.row2Y;
@@ -165,6 +168,7 @@ function drawReadyQueue(queue) {
 }
 
 function drawBlockedQueue(queue) {
+    // Draw Label
     ctx.fillStyle = COLORS.label;
     ctx.font = '18px Arial';
     ctx.textAlign = 'left';
@@ -177,6 +181,7 @@ function drawBlockedQueue(queue) {
         return;
     }
 
+    // Draw queue boxes horizontally
     queue.forEach((pidWithTimer, index) => {
         let x = LAYOUT.blockedX + index * (LAYOUT.boxSize + LAYOUT.boxGap);
         let y = LAYOUT.row3Y;
@@ -200,6 +205,7 @@ function drawBlockedQueue(queue) {
 }
 
 function drawTerminated(terminatedList) {
+    // Draw Label
     ctx.fillStyle = COLORS.label;
     ctx.font = '18px Arial';
     ctx.textAlign = 'left';
@@ -212,6 +218,7 @@ function drawTerminated(terminatedList) {
         return;
     }
     
+    // Draw list vertically
     ctx.fillStyle = COLORS.terminated;
     ctx.font = '18px Arial';
     terminatedList.forEach((pid, index) => {
@@ -221,11 +228,13 @@ function drawTerminated(terminatedList) {
 }
 
 function drawProcessStatus(stats) {
+    // Draw Label
     ctx.fillStyle = COLORS.label;
     ctx.font = '18px Arial';
     ctx.textAlign = 'left';
     ctx.fillText('All Process Status', LAYOUT.tableX, LAYOUT.row1Y - 10);
 
+    // Draw Table Header
     ctx.font = 'bold 16px Arial';
     ctx.fillStyle = COLORS.textDark;
     ctx.textAlign = 'left';
@@ -234,12 +243,14 @@ function drawProcessStatus(stats) {
     ctx.fillText('State', LAYOUT.tableX + 100, thY);
     ctx.fillText('Rem. Burst', LAYOUT.tableX + 200, thY);
 
+    // Draw Table Rows
     if (!stats) return;
     ctx.font = '16px Arial';
     stats.forEach((p, index) => {
-        let y = LAYOUT.row1Y + 50 + (index * 30);
+        let y = LAYOUT.row1Y + 50 + (index * 30); // Increased line spacing
         ctx.fillText(p.id, LAYOUT.tableX, y);
         
+        // Color-code the state
         let state = p.state || '...';
         switch (state) {
             case 'Run': ctx.fillStyle = COLORS.cpu; break;
@@ -250,12 +261,13 @@ function drawProcessStatus(stats) {
         }
         ctx.fillText(state, LAYOUT.tableX + 100, y);
         
+        // Reset color for text
         ctx.fillStyle = COLORS.textDark;
         ctx.fillText(p.remainingBurst, LAYOUT.tableX + 200, y);
     });
 }
 
-// --- NEW GANTT CHART FUNCTION ---
+// --- GANTT CHART FUNCTION ---
 function getGanttColor(pid) {
     if (pid === 'Idle') return COLORS.ganttIdle;
     // Use a simple hash to get a color
@@ -276,7 +288,9 @@ function drawGanttChart(currentTime) {
     ctx.strokeRect(LAYOUT.ganttX, LAYOUT.row4Y, canvas.width - LAYOUT.padding * 2, LAYOUT.ganttHeight);
 
     // Draw the process blocks
-    let maxBlocks = Math.floor((canvas.width - LAYOUT.ganttX - LAYOUT.padding) / LAYOUT.ganttCellWidth);
+    let maxBlocks = Math.floor((canvas.width - LAYOUT.ganttX - LAYOT.padding) / LAYOUT.ganttCellWidth);
+    if(isNaN(maxBlocks)) maxBlocks = 30; // A safe fallback
+    
     let startTick = 0;
     
     // If chart is too long, only draw the most recent blocks
@@ -286,7 +300,7 @@ function drawGanttChart(currentTime) {
     
     for (let i = startTick; i <= currentTime; i++) {
         let pid = ganttHistory[i];
-        if (pid === undefined) continue; // Skip ticks that haven't been stored yet
+        if (pid === undefined) continue; // Skip ticks
         
         let x = LAYOUT.ganttX + (i - startTick) * LAYOUT.ganttCellWidth;
         
