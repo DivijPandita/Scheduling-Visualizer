@@ -101,3 +101,14 @@ button:disabled {
     font-weight: bold;
     color: #d9534f;
 }
+
+/* Add these new rules to style.css */
+
+.priority-col {
+    display: none; /* Hide priority column by default */
+}
+
+#time-quantum-div {
+    display: block; /* Show RR time quantum by default */
+    margin-top: 10px;
+}
