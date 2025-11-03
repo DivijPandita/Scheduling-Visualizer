@@ -112,3 +112,10 @@ button:disabled {
     display: block; /* Show RR time quantum by default */
     margin-top: 10px;
 }
+
+.burst-sequence-input {
+    width: 120px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}

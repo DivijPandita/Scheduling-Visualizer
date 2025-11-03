@@ -42,30 +42,25 @@ export function initUI(handlers) {
 function updateUIForAlgorithm() {
     const selectedAlgo = algorithmSelect.value;
     
-    // Get all priority column elements
     const priorityElements = document.querySelectorAll('.priority-col');
     
     if (selectedAlgo === 'RR') {
-        timeQuantumDiv.style.display = 'block'; // Show Time Quantum
-        priorityElements.forEach(el => el.style.display = 'none'); // Hide Priority
+        timeQuantumDiv.style.display = 'block';
+        priorityElements.forEach(el => el.style.display = 'none');
     } else if (selectedAlgo === 'PRIORITY') {
-        timeQuantumDiv.style.display = 'none'; // Hide Time Quantum
-        priorityElements.forEach(el => el.style.display = 'table-cell'); // Show Priority
+        timeQuantumDiv.style.display = 'none';
+        priorityElements.forEach(el => el.style.display = 'table-cell');
     } else {
-        // FCFS or SJF
-        timeQuantumDiv.style.display = 'none'; // Hide Time Quantum
-        priorityElements.forEach(el => el.style.display = 'none'); // Hide Priority
+        timeQuantumDiv.style.display = 'none';
+        priorityElements.forEach(el => el.style.display = 'none');
     }
 }
 
 /**
  * Handles clicks inside the process table (for remove buttons)
- * @param {Event} e - The click event
  */
 function handleTableClick(e) {
-    // Corrected line: Removed the extra ".contents"
     if (e.target.classList.contains('remove-btn')) {
-        // Find the closest 'tr' (table row) and remove it
         e.target.closest('tr').remove();
     }
 }
@@ -78,12 +73,11 @@ function addProcessRow() {
     newRow.innerHTML = `
         <td>P${processIdCounter}</td>
         <td><input type="number" value="0" min="0"></td>
-        <td><input type="number" value="1" min="1"></td>
+        <td><input type="text" value="5" class="burst-sequence-input"></td>
         <td class="priority-col"><input type="number" value="1" min="1"></td>
         <td><button class="remove-btn">Remove</button></td>
     `;
     processIdCounter++;
-    // Re-apply the show/hide logic for the new row
     updateUIForAlgorithm(); 
 }
 
@@ -94,22 +88,43 @@ function addProcessRow() {
 export function getProcesses() {
     const processes = [];
     const rows = processTableBody.querySelectorAll('tr');
+    
     rows.forEach(row => {
         const cells = row.querySelectorAll('td');
-        const inputs = row.querySelectorAll('input');
-        
-        processes.push({
-            id: cells[0].textContent,
-            arrival: parseInt(inputs[0].value),
-            burst: parseInt(inputs[1].value),
-            priority: parseInt(inputs[2].value), // Read the priority input
-            // We add properties for the algorithm to use
-            remainingBurst: parseInt(inputs[1].value),
-            isFinished: false,
-            completionTime: 0,
-            turnaroundTime: 0,
-            waitingTime: 0,
-        });
+        const arrivalInput = row.querySelector('input[type="number"]');
+        const priorityInput = row.querySelector('.priority-col input');
+        const burstSequenceInput = row.querySelector('.burst-sequence-input');
+
+        // Parse the burst sequence string (e.g., "5,3,8") into an array of numbers [5, 3, 8]
+        const burstSequence = burstSequenceInput.value.split(',')
+                                    .map(s => parseInt(s.trim()))
+                                    .filter(n => !isNaN(n) && n > 0);
+
+        // Calculate total burst time (only CPU bursts)
+        let totalCpuBurst = 0;
+        for (let i = 0; i < burstSequence.length; i += 2) {
+            totalCpuBurst += burstSequence[i];
+        }
+
+        if (burstSequence.length > 0) {
+            processes.push({
+                id: cells[0].textContent,
+                arrival: parseInt(arrivalInput.value),
+                priority: parseInt(priorityInput.value),
+                
+                burstSequence: burstSequence, // The array [5, 3, 8]
+                totalBurst: totalCpuBurst, // The total CPU time (5 + 8)
+                
+                // --- State for the algorithm ---
+                burstIndex: 0, // Current position in the burstSequence array
+                remainingBurst: burstSequence[0], // The first CPU burst
+                ioTimer: 0, // Countdown for I/O
+                isFinished: false,
+                completionTime: 0,
+                turnaroundTime: 0,
+                waitingTime: 0, // This will now track time in Ready Queue
+            });
+        }
     });
     return processes;
 }
@@ -132,31 +147,25 @@ export function getAlgorithm() {
 
 /**
  * Updates the state of the UI controls (disabled/enabled)
- * This function IS EXPORTED
- * @param {boolean} isRunning - Is the simulation currently running?
  */
 export function updateControls(isRunning) {
     runBtn.disabled = isRunning;
     addProcessBtn.disabled = isRunning;
     algorithmSelect.disabled = isRunning;
     
-    // Disable all table inputs
     processTableBody.querySelectorAll('input').forEach(input => {
         input.disabled = isRunning;
     });
 
-    // Enable/disable other controls
     pauseBtn.disabled = !isRunning;
     resetBtn.disabled = !isRunning;
     
-    // Step buttons should be disabled by default, only enabled on pause
     stepForwardBtn.disabled = true;
     stepBackwardBtn.disabled = true; 
 }
 
 /**
  * Resets the UI to its initial state
- * This function IS EXPORTED
  */
 export function resetUI() {
     runBtn.disabled = false;
@@ -175,6 +184,7 @@ export function resetUI() {
     // Clear stats
     document.getElementById('current-time').textContent = '0';
     document.getElementById('ready-queue-span').textContent = '[Empty]';
+    document.getElementById('blocked-span').textContent = '[Empty]'; // NEW
     document.getElementById('terminated-span').textContent = '[Empty]';
     document.getElementById('results-table-body').innerHTML = '';
     document.getElementById('avg-tat').textContent = '0.00';
