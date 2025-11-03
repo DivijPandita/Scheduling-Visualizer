@@ -3,7 +3,7 @@
 
 import { initUI, getProcesses, getTimeQuantum, getAlgorithm, updateControls, resetUI } from './ui.js';
 import { calculateSchedule } from './algorithm.js';
-import { drawFrame } from './animation.js';
+import { drawFrame, resetAnimation } from './animation.js'; // Import resetAnimation
 
 // --- Application State ---
 let animationSteps = []; // Stores the full animation "script"
@@ -45,7 +45,7 @@ function handleRun() {
     console.log(`Starting animation with ${animationSteps.length} steps.`);
     currentStep = 0;
     isPlaying = true;
-    updateControls(true);
+    updateControls(true); // Disable inputs, enable pause/reset
     
     document.getElementById('algorithm-select').disabled = true;
 
@@ -61,6 +61,7 @@ function handlePause() {
     if (animationInterval) {
         clearInterval(animationInterval);
     }
+    // Enable step buttons only when paused and simulation has run
     if (animationSteps.length > 0) {
         document.getElementById('step-forward-btn').disabled = false;
         document.getElementById('step-backward-btn').disabled = false;
@@ -73,14 +74,19 @@ function handlePause() {
  */
 function handleReset() {
     console.log("Reset clicked");
-    handlePause();
+    handlePause(); // Stop any running intervals
     animationSteps = [];
     currentStep = 0;
-    resetUI();
+    resetUI(); // Resets all UI elements
     
+    // --- ADDED ---
+    resetAnimation(); // Clears the Gantt chart history
+    // --- END ---
+    
+    // Re-enable the algorithm select
     document.getElementById('algorithm-select').disabled = false;
     
-    drawFrame(null);
+    drawFrame(null); // Clear the canvas
 }
 
 /**
@@ -122,9 +128,11 @@ function startAnimation() {
             updateSimulationState(currentStep);
             currentStep++;
         } else {
-            handlePause();
+            handlePause(); // Stop when animation ends
+            // Lock onto the last step
             if (currentStep >= animationSteps.length) {
                 currentStep = animationSteps.length - 1;
+                // Ensure the final state is fully displayed
                 if(currentStep >= 0) {
                      updateSimulationState(currentStep);
                 }
@@ -144,13 +152,12 @@ function updateSimulationState(stepIndex) {
     // 1. Draw the canvas
     drawFrame(stepData);
 
-    // 2. Update statistics
+    // 2. Update statistics panel
     document.getElementById('current-time').textContent = stepData.time;
     
     const readyQueueText = stepData.readyQueue.length > 0 ? stepData.readyQueue.join(', ') : '[Empty]';
     document.getElementById('ready-queue-span').textContent = readyQueueText;
     
-    // NEW - Update Blocked Queue
     const blockedQueueText = stepData.blockedQueue.length > 0 ? stepData.blockedQueue.join(', ') : '[Empty]';
     document.getElementById('blocked-span').textContent = blockedQueueText;
 
@@ -176,11 +183,14 @@ function displayFinalResults(finalStats) {
 
     if (Array.isArray(finalStats)) {
         finalStats.forEach(p => {
+            // Use p.totalBurst (for RR) or p.burst (for FCFS/SJF)
+            const burst = p.totalBurst || p.burst;
+
             const row = resultsBody.insertRow();
             row.innerHTML = `
                 <td>${p.id}</td>
                 <td>${p.arrival}</td>
-                <td>${p.totalBurst}</td> <td>${p.completionTime}</td>
+                <td>${burst}</td> <td>${p.completionTime}</td>
                 <td>${p.turnaroundTime}</td>
                 <td>${p.waitingTime}</td>
             `;
@@ -202,7 +212,11 @@ function displayFinalResults(finalStats) {
 
 
 // --- Initialization ---
+/**
+ * Main entry point for the application
+ */
 function main() {
+    // Pass the handler functions to the UI module
     initUI({
         onRun: handleRun,
         onPause: handlePause,
@@ -211,7 +225,9 @@ function main() {
         onStepBackward: handleStepBackward
     });
     
+    // Draw the initial empty state
     drawFrame(null);
 }
 
+// Start the application once the DOM is loaded
 document.addEventListener('DOMContentLoaded', main);
