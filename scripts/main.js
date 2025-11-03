@@ -1,8 +1,8 @@
 // This is the main controller.
 // It imports functions from other modules and manages the application state.
 
-import { initUI, getProcesses, getTimeQuantum, updateControls, resetUI } from './ui.js';
-import { calculateRoundRobin } from './algorithm.js';
+import { initUI, getProcesses, getTimeQuantum, getAlgorithm, updateControls, resetUI } from './ui.js';
+import { calculateSchedule } from './algorithm.js';
 import { drawFrame } from './animation.js';
 
 // --- Application State ---
@@ -10,7 +10,7 @@ let animationSteps = []; // Stores the full animation "script"
 let currentStep = 0;     // The current step we are viewing
 let isPlaying = false;
 let animationInterval = null;
-let animationSpeed = 1000; // Milliseconds
+let animationSpeed = 1000; // Milliseconds (default)
 
 // --- Main Handlers ---
 
@@ -23,15 +23,16 @@ function handleRun() {
     // 1. Get inputs from UI
     const processes = getProcesses();
     const quantum = getTimeQuantum();
+    const algorithmType = getAlgorithm(); // Get the selected algorithm
 
     if (processes.length === 0) {
         alert("Please add at least one process.");
         return;
     }
 
-    // 2. Call the algorithm to get the steps
+    // 2. Call the main schedule router
     try {
-        animationSteps = calculateRoundRobin(processes, quantum);
+        animationSteps = calculateSchedule(algorithmType, processes, quantum);
     } catch (error) {
         console.error("Error in algorithm:", error);
         alert("An error occurred during simulation. Check console.");
@@ -39,7 +40,8 @@ function handleRun() {
     }
     
     if (animationSteps.length === 0) {
-        alert("Algorithm produced no steps. Check inputs.");
+        // This can happen if the algorithm isn't implemented (like Priority)
+        console.log("Algorithm returned no steps. It might not be implemented.");
         return;
     }
 
@@ -48,6 +50,10 @@ function handleRun() {
     currentStep = 0;
     isPlaying = true;
     updateControls(true); // Disable inputs, enable pause/reset
+    
+    // Disable the algorithm select while running
+    document.getElementById('algorithm-select').disabled = true;
+
     startAnimation();
 }
 
@@ -60,9 +66,11 @@ function handlePause() {
     if (animationInterval) {
         clearInterval(animationInterval);
     }
-    // Enable step buttons
-    document.getElementById('step-forward-btn').disabled = false;
-    document.getElementById('step-backward-btn').disabled = false;
+    // Enable step buttons only when paused and simulation has run
+    if (animationSteps.length > 0) {
+        document.getElementById('step-forward-btn').disabled = false;
+        document.getElementById('step-backward-btn').disabled = false;
+    }
     document.getElementById('pause-btn').disabled = true;
 }
 
@@ -71,10 +79,14 @@ function handlePause() {
  */
 function handleReset() {
     console.log("Reset clicked");
-    handlePause();
+    handlePause(); // Stop any running intervals
     animationSteps = [];
     currentStep = 0;
     resetUI(); // Resets all UI elements
+    
+    // Re-enable the algorithm select
+    document.getElementById('algorithm-select').disabled = false;
+    
     drawFrame(null); // Clear the canvas
 }
 
@@ -111,6 +123,8 @@ function startAnimation() {
     document.getElementById('step-backward-btn').disabled = true;
     document.getElementById('pause-btn').disabled = false;
     
+    // Read speed from slider (inverted: higher value = slower)
+    // The slider range is 100 (fast) to 2000 (slow)
     animationSpeed = 2100 - document.getElementById('speed-slider').value;
 
     animationInterval = setInterval(() => {
@@ -119,8 +133,13 @@ function startAnimation() {
             currentStep++;
         } else {
             handlePause(); // Stop when animation ends
+            // Lock onto the last step
             if (currentStep >= animationSteps.length) {
                 currentStep = animationSteps.length - 1;
+                // Ensure the final state is fully displayed
+                if(currentStep >= 0) {
+                     updateSimulationState(currentStep);
+                }
             }
         }
     }, animationSpeed);
@@ -162,25 +181,32 @@ function displayFinalResults(finalStats) {
     let totalTAT = 0;
     let totalWT = 0;
 
-    finalStats.forEach(p => {
-        const row = resultsBody.insertRow();
-        row.innerHTML = `
-            <td>${p.id}</td>
-            <td>${p.arrival}</td>
-            <td>${p.burst}</td>
-            <td>${p.completionTime}</td>
-            <td>${p.turnaroundTime}</td>
-            <td>${p.waitingTime}</td>
-        `;
-        totalTAT += p.turnaroundTime;
-        totalWT += p.waitingTime;
-    });
+    // Ensure finalStats is an array before processing
+    if (Array.isArray(finalStats)) {
+        finalStats.forEach(p => {
+            const row = resultsBody.insertRow();
+            row.innerHTML = `
+                <td>${p.id}</td>
+                <td>${p.arrival}</td>
+                <td>${p.burst}</td>
+                <td>${p.completionTime}</td>
+                <td>${p.turnaroundTime}</td>
+                <td>${p.waitingTime}</td>
+            `;
+            totalTAT += p.turnaroundTime;
+            totalWT += p.waitingTime;
+        });
 
-    const avgTAT = (totalTAT / finalStats.length).toFixed(2);
-    const avgWT = (totalWT / finalStats.length).toFixed(2);
+        if (finalStats.length > 0) {
+            const avgTAT = (totalTAT / finalStats.length).toFixed(2);
+            const avgWT = (totalWT / finalStats.length).toFixed(2);
 
-    document.getElementById('avg-tat').textContent = avgTAT;
-    document.getElementById('avg-wt').textContent = avgWT;
+            document.getElementById('avg-tat').textContent = avgTAT;
+            document.getElementById('avg-wt').textContent = avgWT;
+        }
+    } else {
+        console.error("Final stats are not in the expected array format:", finalStats);
+    }
 }
 
 
