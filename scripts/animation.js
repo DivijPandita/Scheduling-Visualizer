@@ -27,7 +27,7 @@ const COLORS = {
     ganttP5: '#ef4444',      // var(--accent-red)
 };
 
-// --- LAYOUT OBJECT (Unchanged from last time) ---
+// --- LAYOUT OBJECT ---
 const LAYOUT = {
     padding: 30,
     boxSize: 55,
@@ -66,7 +66,6 @@ export function resetAnimation() {
  * Clears the entire canvas
  */
 function clearCanvas() {
-    // We clear, and the CSS gradient background from #main-canvas will show through
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -77,7 +76,7 @@ export function drawFrame(stepData) {
     clearCanvas();
     
     if (!stepData) {
-        ctx.fillStyle = COLORS.textDark; // Use new light text
+        ctx.fillStyle = COLORS.textDark;
         ctx.font = '20px "Inter", sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('Click "Run" to start the simulation.', canvas.width / 2, 50);
@@ -98,10 +97,10 @@ export function drawFrame(stepData) {
     drawGanttChart(stepData.time);
 }
 
-// --- Drawing Helper Functions (Using New COLORS) ---
+// --- Drawing Helper Functions ---
 
 function drawCurrentTime(time) {
-    ctx.fillStyle = COLORS.textDark; // Use light text
+    ctx.fillStyle = COLORS.textDark;
     ctx.font = '24px "Inter", sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(`Time: ${time}`, LAYOUT.timeX, LAYOUT.row1Y);
@@ -119,14 +118,13 @@ function drawCpu(processId, quantum) {
     ctx.strokeStyle = COLORS.label;
     ctx.strokeRect(LAYOUT.cpuX, LAYOUT.row2Y, LAYOUT.boxSize, LAYOUT.boxSize);
 
-    // Use light text on dark boxes, or dark text on light "Idle" box
     ctx.fillStyle = (processId === 'Idle') ? COLORS.textDark : COLORS.text;
     ctx.font = '22px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.fillText(processId, LAYOUT.cpuX + LAYOUT.boxSize / 2, LAYOUT.row2Y + LAYOUT.boxSize / 2 + 8);
     
     if (quantum !== undefined && quantum > 0) {
-        ctx.fillStyle = COLORS.textDark; // Use light text
+        ctx.fillStyle = COLORS.textDark;
         ctx.font = '16px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.fillText(`Q: ${quantum}`, LAYOUT.cpuX + LAYOUT.boxSize / 2, LAYOUT.row2Y + LAYOUT.boxSize + 20);
@@ -155,7 +153,7 @@ function drawReadyQueue(queue) {
         ctx.strokeStyle = COLORS.label;
         ctx.strokeRect(x, y, LAYOUT.boxSize, LAYOUT.boxSize);
 
-        ctx.fillStyle = COLORS.textDark; // Use dark text on light yellow
+        ctx.fillStyle = COLORS.textDark;
         ctx.font = '22px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.fillText(pid, x + LAYOUT.boxSize / 2, y + LAYOUT.boxSize / 2 + 8);
@@ -188,13 +186,13 @@ function drawBlockedQueue(queue) {
         ctx.strokeStyle = COLORS.label;
         ctx.strokeRect(x, y, LAYOUT.boxSize, LAYOUT.boxSize);
 
-        ctx.fillStyle = COLORS.text; // Use light text on dark orange
+        ctx.fillStyle = COLORS.text;
         ctx.font = '22px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.fillText(pid, x + LAYOUT.boxSize / 2, y + LAYOUT.boxSize / 2 + 8);
         
         ctx.font = '16px "JetBrains Mono", monospace';
-        ctx.fillStyle = COLORS.textDark; // Use light text for timer below
+        ctx.fillStyle = COLORS.textDark;
         ctx.fillText(timer, x + LAYOUT.boxSize / 2, y + LAYOUT.boxSize + 20);
     });
 }
@@ -257,7 +255,7 @@ function drawProcessStatus(stats) {
     });
 }
 
-// --- GANTT CHART FUNCTION ---
+// --- GANTT CHART FUNCTION (Only defined ONCE) ---
 function getGanttColor(pid) {
     if (pid === 'Idle') return COLORS.ganttIdle;
     let num = parseInt(pid.substring(1)) || 0;
@@ -292,12 +290,11 @@ function drawGanttChart(currentTime) {
         let x = LAYOUT.ganttX + (i - startTick) * LAYOUT.ganttCellWidth;
         
         ctx.fillStyle = getGanttColor(pid);
-        ctx.fillRect(x, LAYOT.row4Y, LAYOUT.ganttCellWidth, LAYOUT.ganttHeight);
-
-        // --- ADD THESE TWO LINES ---
-        ctx.strokeStyle = COLORS.label; // Use the gray label color for the border
+        ctx.fillRect(x, LAYOUT.row4Y, LAYOUT.ganttCellWidth, LAYOUT.ganttHeight);
+        
+        // This is the border you asked for
+        ctx.strokeStyle = COLORS.label;
         ctx.strokeRect(x, LAYOUT.row4Y, LAYOUT.ganttCellWidth, LAYOUT.ganttHeight);
-        // --- END OF ADDITION ---
         
         if (i % 5 === 0) {
             ctx.fillStyle = COLORS.textDark;
