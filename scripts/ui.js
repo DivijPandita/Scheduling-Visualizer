@@ -8,6 +8,10 @@ const addProcessBtn = document.getElementById('add-process-btn');
 const processTable = document.getElementById('process-table');
 const processTableBody = document.getElementById('process-table-body');
 
+// --- NEW ---
+const ioEnabledDiv = document.getElementById('io-enabled-div');
+const ioEnabledCheck = document.getElementById('io-enabled-check');
+
 // Get all control buttons
 const runBtn = document.getElementById('run-btn');
 const pauseBtn = document.getElementById('pause-btn');
@@ -23,6 +27,7 @@ let processIdCounter = 4; // Start after the default P1, P2, P3
  */
 export function initUI(handlers) {
     algorithmSelect.addEventListener('change', updateUIForAlgorithm);
+    ioEnabledCheck.addEventListener('change', updateUIForAlgorithm); // NEW
     addProcessBtn.addEventListener('click', addProcessRow);
     processTableBody.addEventListener('click', handleTableClick);
     
@@ -41,27 +46,41 @@ export function initUI(handlers) {
  */
 function updateUIForAlgorithm() {
     const selectedAlgo = algorithmSelect.value;
+    const ioEnabled = ioEnabledCheck.checked;
     
     const priorityElements = document.querySelectorAll('.priority-col');
-    const burstHeader = document.getElementById('burst-col-header'); // Get header
-    const burstInputs = document.querySelectorAll('.burst-sequence-input'); // Get all inputs
+    const burstHeader = document.getElementById('burst-col-header');
+    const burstInputs = document.querySelectorAll('.burst-sequence-input');
 
     if (selectedAlgo === 'RR') {
+        // Show RR-specific controls
         timeQuantumDiv.style.display = 'block';
+        ioEnabledDiv.style.display = 'block';
         priorityElements.forEach(el => el.style.display = 'none');
-        burstHeader.textContent = 'Burst Sequence (CPU, I/O, CPU...)'; // Set RR header
+        
+        // Check if I/O is enabled
+        if (ioEnabled) {
+            burstHeader.textContent = 'Burst Sequence (CPU, I/O, CPU...)';
+        } else {
+            // I/O is disabled
+            burstHeader.textContent = 'Burst Time (CPU)';
+            // Simplify inputs
+            burstInputs.forEach(input => {
+                let simplifiedBurst = input.value.split(',')[0].trim();
+                if (simplifiedBurst) input.value = simplifiedBurst;
+            });
+        }
+
     } else { 
         // For FCFS, SJF, PRIORITY
         timeQuantumDiv.style.display = 'none';
-        burstHeader.textContent = 'Burst Time (CPU)'; // Set simple header
+        ioEnabledDiv.style.display = 'none';
+        burstHeader.textContent = 'Burst Time (CPU)';
 
-        // --- NEW ---
-        // Automatically simplify all existing burst inputs for the user
+        // Simplify inputs
         burstInputs.forEach(input => {
             let simplifiedBurst = input.value.split(',')[0].trim();
-            if (simplifiedBurst) {
-                input.value = simplifiedBurst;
-            }
+            if (simplifiedBurst) input.value = simplifiedBurst;
         });
 
         if (selectedAlgo === 'PRIORITY') {
@@ -98,13 +117,22 @@ function addProcessRow() {
 }
 
 /**
+ * --- NEW ---
+ * Helper function to check I/O toggle
+ */
+export function isIOEnabled() {
+    return document.getElementById('io-enabled-check').checked;
+}
+
+/**
  * Reads all process data from the table
  * @returns {Array} Array of process objects
  */
 export function getProcesses() {
     const processes = [];
     const rows = processTableBody.querySelectorAll('tr');
-    const selectedAlgo = getAlgorithm(); // Get current algorithm
+    const selectedAlgo = getAlgorithm();
+    const ioEnabled = isIOEnabled(); // Check checkbox state
     
     rows.forEach(row => {
         const cells = row.querySelectorAll('td');
@@ -118,7 +146,8 @@ export function getProcesses() {
 
         const burstValue = burstSequenceInput.value.trim();
 
-        if (selectedAlgo === 'RR') {
+        // --- UPDATED LOGIC ---
+        if (selectedAlgo === 'RR' && ioEnabled) {
             // --- RR Logic (I/O Enabled) ---
             burstSequence = burstValue.split(',')
                                 .map(s => parseInt(s.trim()))
@@ -130,7 +159,7 @@ export function getProcesses() {
             firstBurst = burstSequence[0] || 0;
 
         } else {
-            // --- FCFS/SJF/Priority Logic (No I/O) ---
+            // --- FCFS/SJF/Priority/RR (I/O Disabled) Logic ---
             firstBurst = parseInt(burstValue.split(',')[0].trim()) || 0;
             if (firstBurst > 0) {
                 burstSequence = [firstBurst]; // Sequence is just the one CPU burst
@@ -150,7 +179,7 @@ export function getProcesses() {
                 
                 // --- State for the algorithm ---
                 burstIndex: 0,
-                remainingBurst: firstBurst, // The first (and for FCFS/SJF, only) CPU burst
+                remainingBurst: firstBurst,
                 ioTimer: 0,
                 isFinished: false,
                 completionTime: 0,
@@ -185,6 +214,7 @@ export function updateControls(isRunning) {
     runBtn.disabled = isRunning;
     addProcessBtn.disabled = isRunning;
     algorithmSelect.disabled = isRunning;
+    ioEnabledCheck.disabled = isRunning; // NEW: Disable checkbox
     
     processTableBody.querySelectorAll('input').forEach(input => {
         input.disabled = isRunning;
@@ -204,6 +234,7 @@ export function resetUI() {
     runBtn.disabled = false;
     addProcessBtn.disabled = false;
     algorithmSelect.disabled = false;
+    ioEnabledCheck.disabled = false; // NEW: Enable checkbox
     
     processTableBody.querySelectorAll('input').forEach(input => {
         input.disabled = false;

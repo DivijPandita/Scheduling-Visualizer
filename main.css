@@ -417,3 +417,26 @@ button:disabled {
 #step-backward-btn:hover:not(:disabled) {
     background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
 }
+
+/* --- New Rules for I/O Checkbox --- */
+
+#io-enabled-div {
+    display: none; /* Hidden by default, shown by JS for RR */
+    margin-top: 15px;
+    padding: 16px;
+    background: rgba(59, 130, 246, 0.08);
+    border-left: 3px solid var(--color-cpu); /* Use the Cyan color */
+    border-radius: 8px;
+}
+#io-enabled-div label {
+    margin-left: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+#io-enabled-check {
+    cursor: pointer;
+    transform: scale(1.2);
+    /* Simple accent color for the checkbox */
+    accent-color: var(--accent-blue);
+}
