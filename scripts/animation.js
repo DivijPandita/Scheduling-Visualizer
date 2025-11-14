@@ -292,15 +292,26 @@ function drawGanttChart(currentTime) {
         ctx.fillStyle = getGanttColor(pid);
         ctx.fillRect(x, LAYOUT.row4Y, LAYOUT.ganttCellWidth, LAYOUT.ganttHeight);
         
-        // This is the border you asked for
+        // Draw border for each block
         ctx.strokeStyle = COLORS.label;
         ctx.strokeRect(x, LAYOUT.row4Y, LAYOUT.ganttCellWidth, LAYOUT.ganttHeight);
         
+        // --- UPDATED NUMBER DRAWING ---
         if (i % 5 === 0) {
-            ctx.fillStyle = COLORS.textDark;
-            ctx.font = '10px "JetBrains Mono", monospace';
+            // Use dark text for "0, 5, 10..."
+            ctx.fillStyle = COLORS.textDark; 
+            ctx.font = '12px "JetBrains Mono", monospace';
             ctx.textAlign = 'center';
-            ctx.fillText(i, x + LAYOUT.ganttCellWidth / 2, LAYOUT.row4Y + LAYOUT.ganttHeight + 10);
+            // Draw number centered INSIDE the box
+            ctx.fillText(i, x + LAYOUT.ganttCellWidth / 2, LAYOUT.row4Y + LAYOUT.ganttHeight / 2 + 5);
+        } else if (i % 1 === 0 && LAYOUT.ganttCellWidth >= 20) { 
+            // If cell is wide enough, draw all other numbers
+            // Use lighter, less obvious text
+            ctx.fillStyle = COLORS.label; 
+            ctx.font = '8px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            // Draw number at the bottom of the box
+            ctx.fillText(i, x + LAYOUT.ganttCellWidth / 2, LAYOUT.row4Y + LAYOUT.ganttHeight - 7);
         }
     }
 }

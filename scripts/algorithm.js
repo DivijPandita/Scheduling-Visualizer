@@ -32,10 +32,13 @@ export function calculateSchedule(type, initialProcesses, quantum) {
 // ---
 // ALGORITHM 1: Round Robin (NEW VERSION with I/O)
 // ---
+// ---
+// ALGORITHM 1: Round Robin (NEW, MORE ACCURATE I/O VERSION)
+// ---
 function calculateRoundRobin_IO(processes, quantum) {
     let currentTime = 0;
     let readyQueue = [];
-    let blockedQueue = []; // New queue for I/O
+    let blockedQueue = [];
     let terminatedProcesses = [];
     let animationSteps = [];
     let totalProcesses = processes.length;
@@ -46,37 +49,40 @@ function calculateRoundRobin_IO(processes, quantum) {
     const processMap = new Map();
     processes.forEach(p => processMap.set(p.id, p));
 
+    // Loop until all processes are terminated
     while (terminatedProcesses.length < totalProcesses) {
+
+        // --- Start of Tick T ---
+
+        // 1. Check for I/O Completions
+        // Processes finishing I/O get queue priority
+        let unblockedProcesses = [];
+        blockedQueue.forEach(p => {
+            p.ioTimer--;
+            if (p.ioTimer === 0) {
+                unblockedProcesses.push(p);
+                p.burstIndex++;
+                p.remainingBurst = p.burstSequence[p.burstIndex];
+            }
+        });
+        blockedQueue = blockedQueue.filter(p => p.ioTimer > 0);
         
-        // 1. Check for new arrivals
+        // 2. Check for New Arrivals
         let newArrivals = [];
         processPool = processPool.filter(p => {
             if (p.arrival === currentTime) {
-                readyQueue.push(p);
-                newArrivals.push(p.id);
+                newArrivals.push(p);
                 return false; // Remove from pool
             }
             return true;
         });
 
-        // 2. Tick down I/O for processes in the blocked queue
-        let unblockedProcesses = [];
-        blockedQueue.forEach(p => {
-            p.ioTimer--;
-            if (p.ioTimer === 0) {
-                // Process is done with I/O
-                unblockedProcesses.push(p);
-                // Move to next burst (which must be CPU)
-                p.burstIndex++;
-                p.remainingBurst = p.burstSequence[p.burstIndex];
-            }
-        });
-        
-        // Move unblocked processes to the ready queue
-        blockedQueue = blockedQueue.filter(p => p.ioTimer > 0);
+        // 3. Add to Ready Queue in correct FCFS order
+        // (Unblocked processes first, then new arrivals)
         readyQueue.push(...unblockedProcesses);
-
-        // 3. Check CPU state (Process Dispatch)
+        readyQueue.push(...newArrivals);
+        
+        // 4. Check for CPU Dispatch
         if (currentProcessOnCPU === null) {
             if (readyQueue.length > 0) {
                 currentProcessOnCPU = readyQueue.shift();
@@ -84,73 +90,82 @@ function calculateRoundRobin_IO(processes, quantum) {
             }
         }
 
-        // 4. Save the state for this time unit
-        const stepData = {
+        // 5. SAVE STATE (This is the state AT time T)
+        animationSteps.push({
             time: currentTime,
             cpuProcess: currentProcessOnCPU ? currentProcessOnCPU.id : 'Idle',
             quantumTimer: quantumTimer,
             readyQueue: readyQueue.map(p => p.id),
-            blockedQueue: blockedQueue.map(p => `${p.id} (${p.ioTimer})`), // Show I/O time
+            blockedQueue: blockedQueue.map(p => `${p.id} (${p.ioTimer})`),
             terminated: terminatedProcesses.map(p => p.id),
-            arrivals: newArrivals,
+            arrivals: newArrivals.map(p => p.id), // Store IDs
             processStats: [...processMap.values()].map(p => ({ 
                  id: p.id, 
                  state: p.isFinished ? 'Term' : (currentProcessOnCPU?.id === p.id ? 'Run' : (readyQueue.includes(p) ? 'Ready' : (blockedQueue.includes(p) ? 'Block' : '...'))),
                  remainingBurst: p.remainingBurst 
             })),
             isFinalStep: false,
-        };
-        animationSteps.push(stepData);
+        });
 
-        // 5. Execute the process on the CPU
+        // --- "Work" Phase (Simulates what happens from T to T+1) ---
+
+        // 6. Execute CPU
         if (currentProcessOnCPU) {
             currentProcessOnCPU.remainingBurst--;
             quantumTimer--;
 
-            // Check for CPU Burst Completion
+            // 7. Check for CPU Burst Completion
             if (currentProcessOnCPU.remainingBurst === 0) {
-                // CPU burst is done. Check if there's more.
                 currentProcessOnCPU.burstIndex++;
                 
                 if (currentProcessOnCPU.burstIndex >= currentProcessOnCPU.burstSequence.length) {
                     // --- PROCESS TERMINATED ---
                     currentProcessOnCPU.isFinished = true;
-                    currentProcessOnCPU.completionTime = currentTime + 1;
+                    currentProcessOnCPU.completionTime = currentTime + 1; // Finishes at END of tick
                     terminatedProcesses.push(currentProcessOnCPU);
                     currentProcessOnCPU = null;
                 } else {
                     // --- PROCESS BLOCKED FOR I/O ---
-                    // Get I/O time from the *next* burst sequence
                     currentProcessOnCPU.ioTimer = currentProcessOnCPU.burstSequence[currentProcessOnCPU.burstIndex];
                     blockedQueue.push(currentProcessOnCPU);
                     currentProcessOnCPU = null;
                 }
             } 
-            // Check for Quantum Expiration
+            // 8. Check for Quantum Expiration
             else if (quantumTimer === 0) {
                 // Preempt!
                 readyQueue.push(currentProcessOnCPU);
                 currentProcessOnCPU = null;
             }
         }
-        
+
+        // 9. Increment Time
         currentTime++;
-        if (currentTime > 1000) { break; } // Safety break
-    }
+        
+        if (currentTime > 1000) { // Safety break
+            console.error("Infinite loop detected!");
+            break; 
+        }
+    } // --- End of While Loop ---
 
     // Calculate final stats
     processes.forEach(p => {
         p.turnaroundTime = p.completionTime - p.arrival;
-        p.waitingTime = p.turnaroundTime - p.totalBurst; // Wait time is TAT - *Total CPU Burst*
+        p.waitingTime = p.turnaroundTime - p.totalBurst;
     });
     
+    // Add one final step to show the completed state
     animationSteps.push({
         time: currentTime,
         cpuProcess: 'Idle', quantumTimer: 0,
         readyQueue: [], blockedQueue: [],
         terminated: terminatedProcesses.map(p => p.id),
         arrivals: [],
-        processStats: [...processMap.values()].map(p => ({ id: p.id, remainingBurst: p.remainingBurst })),
+        processStats: [...processMap.values()].map(p => ({ 
+            id: p.id, 
+            state: 'Term',
+            remainingBurst: 0
+        })),
         isFinalStep: true,
         finalProcessStats: processes
     });
@@ -158,7 +173,6 @@ function calculateRoundRobin_IO(processes, quantum) {
     console.log("Algorithm finished, returning steps:", animationSteps);
     return animationSteps;
 }
-
 
 // ---
 // ALGORITHM 2 & 3: FCFS and SJF (Unchanged)
