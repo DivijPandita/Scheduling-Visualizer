@@ -43,16 +43,32 @@ function updateUIForAlgorithm() {
     const selectedAlgo = algorithmSelect.value;
     
     const priorityElements = document.querySelectorAll('.priority-col');
-    
+    const burstHeader = document.getElementById('burst-col-header'); // Get header
+    const burstInputs = document.querySelectorAll('.burst-sequence-input'); // Get all inputs
+
     if (selectedAlgo === 'RR') {
         timeQuantumDiv.style.display = 'block';
         priorityElements.forEach(el => el.style.display = 'none');
-    } else if (selectedAlgo === 'PRIORITY') {
+        burstHeader.textContent = 'Burst Sequence (CPU, I/O, CPU...)'; // Set RR header
+    } else { 
+        // For FCFS, SJF, PRIORITY
         timeQuantumDiv.style.display = 'none';
-        priorityElements.forEach(el => el.style.display = 'table-cell');
-    } else {
-        timeQuantumDiv.style.display = 'none';
-        priorityElements.forEach(el => el.style.display = 'none');
+        burstHeader.textContent = 'Burst Time (CPU)'; // Set simple header
+
+        // --- NEW ---
+        // Automatically simplify all existing burst inputs for the user
+        burstInputs.forEach(input => {
+            let simplifiedBurst = input.value.split(',')[0].trim();
+            if (simplifiedBurst) {
+                input.value = simplifiedBurst;
+            }
+        });
+
+        if (selectedAlgo === 'PRIORITY') {
+            priorityElements.forEach(el => el.style.display = 'table-cell');
+        } else {
+            priorityElements.forEach(el => el.style.display = 'none');
+        }
     }
 }
 
@@ -88,22 +104,38 @@ function addProcessRow() {
 export function getProcesses() {
     const processes = [];
     const rows = processTableBody.querySelectorAll('tr');
+    const selectedAlgo = getAlgorithm(); // Get current algorithm
     
     rows.forEach(row => {
         const cells = row.querySelectorAll('td');
         const arrivalInput = row.querySelector('input[type="number"]');
         const priorityInput = row.querySelector('.priority-col input');
         const burstSequenceInput = row.querySelector('.burst-sequence-input');
-
-        // Parse the burst sequence string (e.g., "5,3,8") into an array of numbers [5, 3, 8]
-        const burstSequence = burstSequenceInput.value.split(',')
-                                    .map(s => parseInt(s.trim()))
-                                    .filter(n => !isNaN(n) && n > 0);
-
-        // Calculate total burst time (only CPU bursts)
+        
+        let burstSequence = [];
         let totalCpuBurst = 0;
-        for (let i = 0; i < burstSequence.length; i += 2) {
-            totalCpuBurst += burstSequence[i];
+        let firstBurst = 0;
+
+        const burstValue = burstSequenceInput.value.trim();
+
+        if (selectedAlgo === 'RR') {
+            // --- RR Logic (I/O Enabled) ---
+            burstSequence = burstValue.split(',')
+                                .map(s => parseInt(s.trim()))
+                                .filter(n => !isNaN(n) && n > 0);
+            
+            for (let i = 0; i < burstSequence.length; i += 2) {
+                totalCpuBurst += burstSequence[i];
+            }
+            firstBurst = burstSequence[0] || 0;
+
+        } else {
+            // --- FCFS/SJF/Priority Logic (No I/O) ---
+            firstBurst = parseInt(burstValue.split(',')[0].trim()) || 0;
+            if (firstBurst > 0) {
+                burstSequence = [firstBurst]; // Sequence is just the one CPU burst
+            }
+            totalCpuBurst = firstBurst; // Total burst is just the one CPU burst
         }
 
         if (burstSequence.length > 0) {
@@ -112,17 +144,18 @@ export function getProcesses() {
                 arrival: parseInt(arrivalInput.value),
                 priority: parseInt(priorityInput.value),
                 
-                burstSequence: burstSequence, // The array [5, 3, 8]
-                totalBurst: totalCpuBurst, // The total CPU time (5 + 8)
+                burstSequence: burstSequence,
+                burst: totalCpuBurst, // Original burst time (used by SJF)
+                totalBurst: totalCpuBurst, // Total CPU time
                 
                 // --- State for the algorithm ---
-                burstIndex: 0, // Current position in the burstSequence array
-                remainingBurst: burstSequence[0], // The first CPU burst
-                ioTimer: 0, // Countdown for I/O
+                burstIndex: 0,
+                remainingBurst: firstBurst, // The first (and for FCFS/SJF, only) CPU burst
+                ioTimer: 0,
                 isFinished: false,
                 completionTime: 0,
                 turnaroundTime: 0,
-                waitingTime: 0, // This will now track time in Ready Queue
+                waitingTime: 0,
             });
         }
     });
@@ -184,9 +217,12 @@ export function resetUI() {
     // Clear stats
     document.getElementById('current-time').textContent = '0';
     document.getElementById('ready-queue-span').textContent = '[Empty]';
-    document.getElementById('blocked-span').textContent = '[Empty]'; // NEW
+    document.getElementById('blocked-span').textContent = '[Empty]';
     document.getElementById('terminated-span').textContent = '[Empty]';
     document.getElementById('results-table-body').innerHTML = '';
     document.getElementById('avg-tat').textContent = '0.00';
     document.getElementById('avg-wt').textContent = '0.00';
+
+    // Make sure the UI updates to the default algorithm
+    updateUIForAlgorithm();
 }
